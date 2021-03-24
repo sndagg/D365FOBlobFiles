@@ -1,0 +1,80 @@
+using Microsoft.Azure;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Blob.CloudBlobContainer;
+using Microsoft.WindowsAzure.Storage.Blob.CloudBlockBlob;
+using Microsoft.WindowsAzure.Storage.File;
+
+class UploadReportstoBlob
+{    
+    
+    public static void UploadtoBlobStorageContainerfromfileUpload(FileUpload fileUpload)
+    {
+        ExcelReportsPlaceholderTable    plcHldrTable;
+        CustomParametersTable parametersTable;
+
+        select * from parametersTable;
+
+        str connstring = parametersTable.SysConnectionString;
+            
+        CloudBlobClient  cloudBlobClient;
+        CloudBlobContainer  cloudBlobContainer;
+        CloudStorageAccount  cloudStorageAccount;
+        cloudStorageAccount  = CloudStorageAccount::Parse(connstring);
+        cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
+        cloudBlobContainer  = cloudBlobClient.GetContainerReference(parametersTable.ContainerName);
+
+        str filename = fileUpload.fileName();
+        CloudBlockBlob blockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
+        if(blockBlob && !blockBlob.Exists(null, null))
+        {
+            blockBlob.UploadFromStream(fileUpload.getUploadedFile(),null, null, null);
+
+            blockblob.FetchAttributes(null, null, null);
+            BlobProperties blobProperties = blockBlob.Properties;
+            if(blobProperties.Length == fileUpload.getUploadedFile().Length)
+            {
+                Info("File Upload successful");
+                UploadReportstoBlob::LoadPlcholderTable();
+            }
+        }
+        else
+        {
+            Info("File already exists");
+        }
+    }
+
+    public static void LoadPlcholderTable()
+    {
+        CustomParametersTable parametersTable;
+        ExcelReportsPlaceholderTable    plcHldrTable;
+
+        select * from parametersTable;
+        str connstring = parametersTable.SysConnectionString;
+            
+        CloudBlobClient  cloudBlobClient;
+        CloudBlobContainer  cloudBlobContainer;
+        CloudStorageAccount  cloudStorageAccount;
+        cloudStorageAccount  = CloudStorageAccount::Parse(connstring);
+        cloudBlobClient = cloudStorageAccount.CreateCloudBlobClient();
+        cloudBlobContainer  = cloudBlobClient.GetContainerReference(parametersTable.ContainerName);
+                 
+         System.Collections.IEnumerable list = new System.Collections.Generic.List<str>();
+            list = cloudBlobContainer.ListBlobs(null, false, 0, null, null);
+            System.Collections.IEnumerator listEnumerator = list.getEnumerator();
+
+            while(listEnumerator.MoveNext())
+            {
+                IListBlobItem item = listEnumerator.Current;
+                if(item is CloudBlockBlob)
+                {
+                    CloudBlockBlob blob = item;
+                    blob.FetchAttributes(null, null, null);
+                    plcHldrTable.Filename = blob.name;
+                    plcHldrTable.URL = "https://"+parametersTable.AccountName+"+.blob.core.windows.net/defacto/"+blob.name;
+                    plcHldrTable.insert();
+                }
+            }
+    }
+
+}
